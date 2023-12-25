@@ -3,38 +3,31 @@ import 'dart:math';
 import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:state_manage/bloc_pattern/controller.dart';
+import 'package:state_manage/bloc_pattern/state.dart';
 import 'package:state_manage/widgets/imc_gauge_range.dart';
 import 'package:syncfusion_flutter_gauges/gauges.dart';
 
 import '../widgets/imc_gauge.dart';
 
-class ValueNotifierPage extends StatefulWidget {
-  const ValueNotifierPage({super.key});
+class BlocPatternPage extends StatefulWidget {
+  const BlocPatternPage({super.key});
 
   @override
-  State<ValueNotifierPage> createState() => _ValueNotifierPageState();
+  State<BlocPatternPage> createState() => _BlocPatternPageState();
 }
 
-class _ValueNotifierPageState extends State<ValueNotifierPage> {
+class _BlocPatternPageState extends State<BlocPatternPage> {
+  final controller = ImcBlocPatternController();
   final pesoEC = TextEditingController();
   final alturaEC = TextEditingController();
   final formKey = GlobalKey<FormState>();
-
-  var imc = ValueNotifier(0.0);
-
-  Future<void> _calcularIMC(
-      {required double peso, required double altura}) async {
-    imc.value = 0.0;
-
-    await Future.delayed(Duration(seconds: 1));
-
-    imc.value = peso / pow(altura, 2);
-  }
 
   @override
   void dispose() {
     pesoEC.dispose();
     alturaEC.dispose();
+    controller.dispose();
     super.dispose();
   }
 
@@ -42,7 +35,7 @@ class _ValueNotifierPageState extends State<ValueNotifierPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Value Notifier Imc'),
+        title: const Text('Bloc Pattern Imc'),
       ),
       body: SingleChildScrollView(
         child: Form(
@@ -51,16 +44,28 @@ class _ValueNotifierPageState extends State<ValueNotifierPage> {
             padding: const EdgeInsets.all(8.0),
             child: Column(
               children: [
-                ValueListenableBuilder<double>(
-                    valueListenable: imc,
-                    builder: (_, imcvalue, __) {
-                      return ImcGauge(
-                        imc: imcvalue,
-                      );
+                StreamBuilder<ImcState>(
+                    stream: controller.imcOut,
+                    builder: (context, snapshot) {
+                      var imc = snapshot.data?.imc ?? 0;
+
+                      return ImcGauge(imc: imc);
                     }),
                 const SizedBox(
                   height: 20,
                 ),
+                StreamBuilder<ImcState>(
+                    stream: controller.imcOut,
+                    builder: (context, snapshot) {
+                      final dataValue = snapshot.data;
+                      if (dataValue is ImcStateLoading) {
+                        return Center(child: CircularProgressIndicator());
+                      }
+                      if (dataValue is ImcStateError) {
+                        return Text(dataValue.messege);
+                      }
+                      return SizedBox.shrink();
+                    }),
                 TextFormField(
                   controller: pesoEC,
                   keyboardType: TextInputType.number,
@@ -109,7 +114,7 @@ class _ValueNotifierPageState extends State<ValueNotifierPage> {
                         double altura =
                             formatter.parse(alturaEC.text) as double;
 
-                        _calcularIMC(peso: peso, altura: altura);
+                        controller.calcularImc(peso: peso, altura: altura);
                       }
                     },
                     child: Text('Calcular IMC'))
